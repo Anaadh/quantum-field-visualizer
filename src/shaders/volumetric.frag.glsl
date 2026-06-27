@@ -42,7 +42,7 @@ float getDensity(vec3 p) {
 void main() {
   // Ray setup
   vec3 rayOrigin = vPosition;
-  vec3 viewDir = normalize(rayOrigin - cameraPosition);
+  vec3 viewDir = normalize(cameraPosition - rayOrigin);
 
   float stepSize = 0.1;
   float totalDist = 0.0;
