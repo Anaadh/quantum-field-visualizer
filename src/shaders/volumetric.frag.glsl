@@ -17,21 +17,20 @@ varying vec3 vPosition;
 varying vec3 vNormal;
 
 void main() {
-  // Simple raymarch: march from surface toward camera
   vec3 rayOrigin = vPosition;
   vec3 viewDir = normalize(cameraPosition - rayOrigin);
 
-  float stepSize = 0.2;
   float totalDist = 0.0;
   vec4 accumulated = vec4(0.0);
-  float maxDist = length(cameraPosition - rayOrigin) + 2.0;
+  float maxDist = length(cameraPosition - rayOrigin) + 3.0;
+  float stepSize = 0.15;
 
-  for (int i = 0; i < 32; i++) {
+  for (int i = 0; i < 100; i++) {
     vec3 p = rayOrigin + viewDir * totalDist;
     if (totalDist > maxDist) break;
 
-    // Simple sphere at origin
-    float d = length(p);
+    // Simple sphere density centered at nucleus1
+    float d = length(p - uNucleus1);
     float density = exp(-d * d * 0.3) * uIntensity * 2.0;
 
     if (density > 0.01) {

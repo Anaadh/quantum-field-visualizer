@@ -28,8 +28,9 @@ export class VolumeField extends Field {
 
     this.mode = mode; // 0=basic, 1=quark, 2=electron, 3=gluon, 4=photon
 
-    // Proxy geometry — a large box that encloses the volume to render
-    const geo = new THREE.BoxGeometry(12, 12, 12);
+    // Proxy geometry — a large sphere that encloses the volume to render.
+    // Sphere has no silhouette gaps from any angle (unlike a box with BackSide).
+    const geo = new THREE.SphereGeometry(6, 32, 24);
 
     this.uniforms = {
       uTime:        { value: 0 },
