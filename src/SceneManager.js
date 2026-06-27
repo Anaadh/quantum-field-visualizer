@@ -3,6 +3,8 @@ import * as THREE from 'three';
 export class SceneManager {
   constructor(canvas) {
     this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x000000);
+
     this.camera = new THREE.PerspectiveCamera(
       75,
       window.innerWidth / window.innerHeight,
@@ -14,12 +16,16 @@ export class SceneManager {
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: true,
-      alpha: true,
+      alpha: false,
     });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.0;
+    this.renderer.setClearColor(0x000000, 1);
+    this.renderer.toneMapping = THREE.NoToneMapping;
+
+    // Ambient lighting to help visibility
+    const ambientLight = new THREE.AmbientLight(0x404060);
+    this.scene.add(ambientLight);
 
     this.fields = [];
   }

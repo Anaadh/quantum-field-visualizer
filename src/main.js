@@ -1,8 +1,5 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { SceneManager } from './SceneManager.js';
 import { UpQuarkField, DownQuarkField } from './fields/QuarkField.js';
 import { ElectronField } from './fields/ElectronField.js';
@@ -16,26 +13,6 @@ const canvas = document.createElement('canvas');
 document.body.appendChild(canvas);
 
 const sceneManager = new SceneManager(canvas);
-
-// --- Post-Processing: Bloom ---
-const composer = new EffectComposer(sceneManager.renderer);
-const renderPass = new RenderPass(sceneManager.scene, sceneManager.camera);
-composer.addPass(renderPass);
-
-const bloomPass = new UnrealBloomPass(
-  new THREE.Vector2(window.innerWidth, window.innerHeight),
-  0.5,  // strength
-  0.4,  // radius
-  0.85  // threshold
-);
-composer.addPass(bloomPass);
-sceneManager.bloomPass = bloomPass;
-
-// Override SceneManager.render to use composer
-sceneManager._origRender = sceneManager.render;
-sceneManager.render = function (time) {
-  composer.render();
-};
 
 // --- Controls ---
 const controls = new OrbitControls(sceneManager.camera, canvas);
@@ -64,7 +41,7 @@ Object.values(fields).forEach((f) => sceneManager.addField(f));
 // --- Simulation ---
 const sim = new SimulationManager(fields);
 sim.onPhaseChange = (phase) => {
-  ui.updateDisplay(phase);
+  if (ui) ui.updateDisplay(phase);
 };
 
 // --- UI ---
@@ -81,15 +58,13 @@ function animate(time) {
   const deltaTime = lastTime ? Math.min(now - lastTime, 0.05) : 0.016;
   lastTime = now;
 
-  // Update simulation
+  // Update simulation (which updates all fields internally)
   sim.update(deltaTime);
-
-  // Fields are updated internally by their phases via sim.update()
 
   // Update controls
   controls.update();
 
-  // Render with bloom
+  // Render directly to screen
   sceneManager.render(now);
 }
 animate(0);
@@ -99,7 +74,6 @@ window.addEventListener('resize', () => {
   const w = window.innerWidth;
   const h = window.innerHeight;
   sceneManager.resize(w, h);
-  composer.setSize(w, h);
 });
 
 export { sceneManager, fields, sim };

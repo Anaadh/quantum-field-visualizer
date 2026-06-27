@@ -63,15 +63,6 @@ export class UI {
     });
     clip.open();
 
-    // Post-processing
-    const pp = this.gui.addFolder('Post-Process');
-    pp.add(state, 'Bloom Intensity', 0, 2, 0.05).name('Bloom').onChange((v) => {
-      if (sceneManager.bloomPass) {
-        sceneManager.bloomPass.strength = v;
-      }
-    });
-    pp.open();
-
     this.state = state;
     this._clipPos = clipPos;
   }
