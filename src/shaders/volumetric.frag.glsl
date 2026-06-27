@@ -1,6 +1,5 @@
 // Volumetric Raymarching Fragment Shader for Quantum Field Visualization
 
-// --- Uniforms ---
 uniform float uTime;
 uniform vec3  uColor;
 uniform float uIntensity;
@@ -13,60 +12,35 @@ uniform vec3  uNucleus2;
 uniform int   uMode;
 uniform vec2  uResolution;
 
-// --- Varyings from vertex shader ---
 varying vec2 vUv;
 varying vec3 vPosition;
 varying vec3 vNormal;
 
-// --- Constants ---
-#define MAX_STEPS       64
-#define MAX_DIST        12.0
-
-// --- Simple procedural density: glowing sphere centered at nucleus ---
-float getDensity(vec3 p) {
-  vec3 center = uNucleus1;
-  float d = length(p - center);
-
-  // Soft sphere: peak at center, fall off with distance
-  float sphere = exp(-d * d * 0.5);
-
-  // Add a shell at radius 2.0 for orbital effect
-  float shellDist = abs(d - 2.0);
-  float shell = exp(-shellDist * shellDist * 2.0) * 0.5;
-
-  float density = (sphere + shell) * uIntensity;
-  return max(0.0, density);
-}
-
-// --- Main fragment entry point ---
 void main() {
-  // Ray setup
+  // Simple raymarch: march from surface toward camera
   vec3 rayOrigin = vPosition;
   vec3 viewDir = normalize(cameraPosition - rayOrigin);
 
-  float stepSize = 0.1;
+  float stepSize = 0.2;
   float totalDist = 0.0;
   vec4 accumulated = vec4(0.0);
+  float maxDist = length(cameraPosition - rayOrigin) + 2.0;
 
-  for (int i = 0; i < MAX_STEPS; i++) {
+  for (int i = 0; i < 32; i++) {
     vec3 p = rayOrigin + viewDir * totalDist;
+    if (totalDist > maxDist) break;
 
-    if (totalDist > MAX_DIST) break;
+    // Simple sphere at origin
+    float d = length(p);
+    float density = exp(-d * d * 0.3) * uIntensity * 2.0;
 
-    float density = getDensity(p);
-    if (density < 0.005) {
-      totalDist += stepSize * 2.0;
-      continue;
+    if (density > 0.01) {
+      vec3 sampleColor = uColor * density;
+      float alpha = density * stepSize;
+      accumulated.rgb += (1.0 - accumulated.a) * sampleColor * alpha;
+      accumulated.a += (1.0 - accumulated.a) * alpha;
+      if (accumulated.a > 0.95) break;
     }
-
-    vec3 sampleColor = uColor * density * 2.0;
-
-    float alpha = density * stepSize;
-    accumulated.rgb += (1.0 - accumulated.a) * sampleColor * alpha;
-    accumulated.a += (1.0 - accumulated.a) * alpha;
-
-    if (accumulated.a > 0.95) break;
-
     totalDist += stepSize;
   }
 
