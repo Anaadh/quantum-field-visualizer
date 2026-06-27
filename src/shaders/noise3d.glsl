@@ -110,7 +110,8 @@ float fbm(vec3 p, int octaves) {
   float lacunaria = 2.0;
   float gain = 0.5;
 
-  for (int i = 0; i < octaves; i++) {
+  for (int i = 0; i < 8; i++) {
+    if (i >= octaves) break;
     value += amplitude * snoise(p * frequency);
     maxValue += amplitude;
     amplitude *= gain;
