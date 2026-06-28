@@ -1,12 +1,74 @@
 import * as THREE from 'three';
 import { Field } from './Field.js';
 
+// ─── Deterministic noise helpers (shared, but each field samples differently) ───
+
+function noiseGLSL() {
+  return `
+    // --- Individual 2D noise per field (all use same base, different sampling) ---
+    float hash21(vec2 p) {
+      return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+    }
+    float hash21alt(vec2 p) {
+      return fract(sin(dot(p, vec2(269.5, 183.3))) * 73758.5493);
+    }
+
+    float valueNoise(vec2 p) {
+      vec2 i = floor(p);
+      vec2 f = fract(p);
+      f = f * f * (3.0 - 2.0 * f);
+      float a = hash21(i);
+      float b = hash21(i + vec2(1.0, 0.0));
+      float c = hash21(i + vec2(0.0, 1.0));
+      float d = hash21(i + vec2(1.0, 1.0));
+      return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+    }
+
+    // FBM with domain rotation per octave for richer detail
+    float fbmWarp(vec2 p, int octs) {
+      float v = 0.0;
+      float a = 0.5;
+      vec2 shift = vec2(100.0);
+      mat2 rot = mat2(cos(0.5), sin(0.5), -sin(0.5), cos(0.5));
+      for (int i = 0; i < 6; i++) {
+        if (i >= octs) break;
+        v += a * valueNoise(p);
+        p = rot * p * 2.0 + shift;
+        a *= 0.5;
+      }
+      return v;
+    }
+
+    // Voronoi-like: distance to nearest cell centre (gives organic "web" / cell patterns)
+    float voronoi(vec2 p) {
+      vec2 i = floor(p);
+      float md = 8.0;
+      for (int dx = -1; dx <= 1; dx++) {
+        for (int dy = -1; dy <= 1; dy++) {
+          vec2 cell = i + vec2(float(dx), float(dy));
+          vec2 cp = cell + vec2(hash21(cell), hash21(cell * 31.7));
+          float d = length(p - cp);
+          md = min(md, d);
+        }
+      }
+      return md;
+    }
+
+    // Smooth turbine noise — swirling patterns
+    float swirlNoise(vec2 p, float t) {
+      float a = atan(p.y, p.x);
+      float r = length(p);
+      return sin(3.0 * a + r * 2.0 - t * 0.5) * 0.5 + 0.5;
+    }
+  `;
+}
+
 export class FieldSheet extends Field {
   constructor(name, color, mode, params = {}) {
     super(name, color, params);
 
     const size = params.size || 16;
-    const segments = params.segments || 120;
+    const segments = params.segments || 140;
     const height = params.height || 0;
     const amplitude = params.amplitude ?? 1.0;
     const logScale = params.logScale ?? 0.5;
@@ -46,78 +108,46 @@ export class FieldSheet extends Field {
       varying float vDeform;
       varying vec3 vWorldPos;
       varying vec3 vNormal;
+      varying float vFieldId;
 
-      // GLSL helper — .xz swizzle not supported in GLSL ES 1.00
       vec2 flatPos(vec3 v) { return vec2(v.x, v.z); }
 
-      // --- Deterministic noise for vacuum fluctuations ---
-      float hash(vec2 p) {
-        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-      }
-      float noise2D(vec2 p) {
-        vec2 i = floor(p);
-        vec2 f = fract(p);
-        f = f * f * (3.0 - 2.0 * f);
-        float a = hash(i);
-        float b = hash(i + vec2(1.0, 0.0));
-        float c = hash(i + vec2(0.0, 1.0));
-        float d = hash(i + vec2(1.0, 1.0));
-        return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-      }
-      float fbm(vec2 p) {
-        float v = 0.0;
-        float a = 0.5;
-        vec2 shift = vec2(100.0);
-        mat2 rot = mat2(cos(0.5), sin(0.5), -sin(0.5), cos(0.5));
-        for (int i = 0; i < 3; i++) {
-          v += a * noise2D(p);
-          p = rot * p * 2.0 + shift;
-          a *= 0.5;
-        }
-        return v;
-      }
+      ${noiseGLSL()}
 
       // --- PHYSICS: Field deformation equations ---
 
-      // Bohr radius in scene units
-      const float AO = 1.5;
+      const float AO = 1.5; // Bohr radius in scene units
 
-      // Hydrogen 1s probability density: |ψ₁₀₀|² = exp(-2r/a₀) / πa₀³
+      // Hydrogen 1s: |ψ₁₀₀|² ∝ exp(-2r/a₀)
       float orbital1s(vec3 pos, vec3 center) {
         float r = length(flatPos(pos) - flatPos(center));
         return exp(-2.0 * r / AO) * 2.0;
       }
 
-      // H₂ bonding: 
-      // ψ_bonding = (ψ₁ + ψ₂) / √[2(1+S)]
-      // |ψ_bonding|² = (ψ₁ + ψ₂)² / [2(1+S)]
-      // where ψ(r) = exp(-r/a₀) / √(πa₀³)  [the wavefunction, NOT the probability density]
+      // H₂ bonding molecular orbital: |ψ_bonding|² = (ψ₁+ψ₂)² / [2(1+S)]
       float orbitalH2(vec3 pos, vec3 c1, vec3 c2) {
         float r1 = length(flatPos(pos) - flatPos(c1));
         float r2 = length(flatPos(pos) - flatPos(c2));
-        // ψ₁₀₀(r) ∝ exp(-r/a₀)  — wavefunction (not squared)
         float psi1 = exp(-r1 / AO);
         float psi2 = exp(-r2 / AO);
         float R = length(flatPos(c1) - flatPos(c2));
-        // Overlap integral S = (1 + R/a₀ + R²/3a₀²) · exp(-R/a₀)
         float S = exp(-R / AO) * (1.0 + R / AO + R*R / (3.0*AO*AO));
-        // |ψ_bonding|² = (ψ₁+ψ₂)² / [2(1+S)]
         return (psi1 + psi2) * (psi1 + psi2) / (2.0 * (1.0 + S)) * 2.5;
       }
 
-      // Quark confinement: gaussian spike (visual proxy for linear confinement)
+      // Quark: gaussian spike
       float quarkWell(vec3 pos, vec3 center) {
         float r = length(flatPos(pos) - flatPos(center));
         return exp(-r * r * 12.0) * 3.0;
       }
 
-      // Coulomb: 1/r potential, clamped and scaled for readability
+      // Coulomb: 1/r potential
       float coulomb(vec3 pos, vec3 center) {
         float r = length(flatPos(pos) - flatPos(center));
         return 1.0 / max(r, 0.15) * 0.4;
       }
 
-      // Gluon binding: gaussian flux tube between nuclei (QCD string)
+      // Gluon flux tube: gaussian perpendicular to line between nuclei
       float gluonTube(vec3 pos, vec3 c1, vec3 c2) {
         vec2 p = flatPos(pos);
         vec2 a = flatPos(c1);
@@ -130,73 +160,122 @@ export class FieldSheet extends Field {
         return exp(-d * d / (thickness * thickness)) * 1.5;
       }
 
-      // Log-scale compression: lets small deformations be visible alongside tall spikes
+      // Log-scale compression
       float logCompress(float val) {
         float compressed = log(1.0 + val * 5.0) / log(1.0 + 5.0);
         return mix(val, compressed, uLogScale);
       }
 
-      // Combined deformation for this field mode
+      // ─── FIELD‑SPECIFIC NOISE — each field has its own character ───
+
+      float quarkNoise(vec2 p, float t) {
+        // Sharp, high-frequency crackle (up/down quarks fluctuate fast)
+        vec2 np = p * 4.0 + vec2(13.7, 41.3) + t * 2.0;
+        float n = fbmWarp(np, 4);
+        return (n - 0.5) * 0.08;
+      }
+
+      float electronNoise(vec2 p, float t) {
+        // Smooth, oceanic undulations
+        vec2 np = p * 1.5 + vec2(92.5, 7.1) + t * 0.15;
+        float n = fbmWarp(np, 3) * 0.5 + 0.5;
+        return (n - 0.5) * 0.06;
+      }
+
+      float gluonNoise(vec2 p, float t) {
+        // Frantic high-velocity plasma
+        vec2 np = p * 8.0 + vec2(55.3, 88.7) + t * 5.0;
+        float n1 = valueNoise(np);
+        float n2 = voronoi(np * 2.0);
+        return (n1 * 0.7 + n2 * 0.3 - 0.5) * 0.2;
+      }
+
+      float photonNoise(vec2 p, float t) {
+        // Gentle radiant shimmer + geometric grid
+        vec2 np = p * 2.5 + vec2(33.1, 66.9) + t * 0.8;
+        float n = fbmWarp(np, 2) * 0.5 + 0.5;
+        float grid = sin(np.x * 3.0) * sin(np.y * 3.0) * 0.03;
+        return (n - 0.5) * 0.04 + grid;
+      }
+
+      float fieldSpaceNoise(vec2 p, float t) {
+        // Deep, slow gravitational waves + cosmic web
+        vec2 np = p * 0.8 + vec2(17.3, 29.1) + t * 0.05;
+        float n1 = fbmWarp(np, 4) * 2.0 - 1.0;
+        float n2 = voronoi(np * 3.0 + t * 0.02) * 0.5;
+        return n1 * 0.03 + n2 * 0.02;
+      }
+
+      // Core field deformation (mode-dependent)
       float getDeform(vec3 pos) {
+        vec2 p = flatPos(pos);
         float d = 0.0;
         float nest = 0.0;
-        float R = length(flatPos(uNucleus1) - flatPos(uNucleus2));
-        float hasSecondNucleus = step(0.5, R);
+        float hasN2 = step(0.5, length(flatPos(uNucleus1) - flatPos(uNucleus2)));
 
         if (uMode == 1) {
-          // Quark sheet: gaussian spikes at each nucleus
+          // ═══ QUARK FIELD (up/down) ═══
+          // Two gaussian spikes with crackling noise
           d = quarkWell(pos, uNucleus1);
-          if (hasSecondNucleus > 0.5) d += quarkWell(pos, uNucleus2);
-          nest = 0.025 * sin(uTime * 4.0 + flatPos(pos).x * 2.5 + flatPos(pos).y * 1.7);
+          if (hasN2 > 0.5) d += quarkWell(pos, uNucleus2);
+          // Anisotropic distortion: stretch along axis between nuclei
+          vec2 axis = normalize(flatPos(uNucleus2) - flatPos(uNucleus1) + vec2(0.001));
+          float stretch = 1.0 + 0.15 * dot(p - flatPos(uNucleus1), axis);
+          d *= 1.0 + 0.04 * sin(uTime * 2.5 + p.x * 3.0 + p.y * 2.0);
+          nest = quarkNoise(p, uTime);
         }
         else if (uMode == 2) {
-          // Electron sheet
-          // Before bonding: TWO separate 1s orbitals (one per atom)
-          float twoAtoms = orbital1s(pos, uNucleus1) + orbital1s(pos, uNucleus2) * hasSecondNucleus;
-          // After bonding: H₂ molecular orbital (peanut shape)
+          // ═══ ELECTRON FIELD ═══
+          // Two 1s orbitals → H₂ molecular orbital (peanut)
+          float twoAtoms = orbital1s(pos, uNucleus1)
+                          + orbital1s(pos, uNucleus2) * hasN2;
           float bonded = orbitalH2(pos, uNucleus1, uNucleus2);
-          d = mix(twoAtoms, bonded, smoothstep(0.2, 0.7, uBondFormed));
-          // Standing wave ripple on each 1s orbital
-          float r1 = length(flatPos(pos) - flatPos(uNucleus1));
-          float r2 = length(flatPos(pos) - flatPos(uNucleus2));
-          float ripple1 = 0.12 * sin(uTime * 0.8 - r1 * 5.0) * orbital1s(pos, uNucleus1);
-          float ripple2 = 0.12 * sin(uTime * 0.8 - r2 * 5.0 + 1.57) * orbital1s(pos, uNucleus2) * hasSecondNucleus;
-          float bondRipple = 0.08 * sin(uTime * 1.2 + r1 * 3.0 - r2 * 3.0) * smoothstep(0.2, 1.0, uBondFormed);
-          nest = ripple1 + ripple2 + bondRipple;
+          float blend = smoothstep(0.2, 0.7, uBondFormed);
+          d = mix(twoAtoms, bonded, blend);
+          // Radial standing wave on each atom
+          float r1 = length(p - flatPos(uNucleus1));
+          float r2 = length(p - flatPos(uNucleus2));
+          // Outgoing spherical wave: sin(ωt - kr) decaying with 1/r
+          float wave1 = 0.10 * sin(uTime * 1.5 - r1 * 6.0) / max(r1, 0.3) * orbital1s(pos, uNucleus1);
+          float wave2 = 0.10 * sin(uTime * 1.5 - r2 * 6.0 + 1.57) / max(r2, 0.3) * orbital1s(pos, uNucleus2) * hasN2;
+          float bondWave = 0.06 * sin(uTime * 2.0 + r1 * 4.0 - r2 * 4.0) * smoothstep(0.2, 1.0, uBondFormed);
+          nest = wave1 + wave2 + bondWave + electronNoise(p, uTime);
         }
         else if (uMode == 3) {
-          // Gluon sheet: flux tube between nuclei
-          if (hasSecondNucleus > 0.5 && R < 6.0) {
+          // ═══ GLUON FIELD ═══
+          // Flux tube between nuclei + plasma arc vibration
+          if (hasN2 > 0.5) {
             d = gluonTube(pos, uNucleus1, uNucleus2);
-            nest = 0.3 * sin(uTime * 14.0 + flatPos(pos).x * 12.0 + flatPos(pos).y * 9.0)
-                   * exp(-length(flatPos(pos) - (flatPos(uNucleus1) + flatPos(uNucleus2)) * 0.5) * 1.5);
+            // Vortex swirl around the tube
+            vec2 mid = (flatPos(uNucleus1) + flatPos(uNucleus2)) * 0.5;
+            float swirl = swirlNoise(p - mid, uTime * 3.0) * 0.2;
+            d *= 1.0 + swirl;
           }
+          nest = gluonNoise(p, uTime);
         }
         else if (uMode == 4) {
-          // Photon sheet: Coulomb potential at each nucleus
+          // ═══ PHOTON FIELD ═══
+          // Coulomb 1/r potential + radiant shimmer
           d = coulomb(pos, uNucleus1);
-          if (hasSecondNucleus > 0.5) d += coulomb(pos, uNucleus2);
-          nest = 0.03 * sin(uTime * 2.0 + flatPos(pos).x * 1.5 + flatPos(pos).y * 1.2);
+          if (hasN2 > 0.5) d += coulomb(pos, uNucleus2);
+          nest = photonNoise(p, uTime);
         }
         else if (uMode == 5) {
-          // Field Space: combined stress-energy from ALL fields → spacetime curvature
-          // GR analogy: R_μν - ½Rg_μν = 8πG T_μν / c⁴
-          // Here we sum energy densities as a proxy for T_μν
-          float electronE = orbital1s(pos, uNucleus1) * 0.3
-                          + orbital1s(pos, uNucleus2) * hasSecondNucleus * 0.3;
-          float quarkE = quarkWell(pos, uNucleus1) * 0.15
-                       + quarkWell(pos, uNucleus2) * hasSecondNucleus * 0.15;
-          float photonE = coulomb(pos, uNucleus1) * 0.2
-                        + coulomb(pos, uNucleus2) * hasSecondNucleus * 0.2;
-          float gluonE = gluonTube(pos, uNucleus1, uNucleus2) * hasSecondNucleus * 0.25;
-          d = electronE + quarkE + photonE + gluonE;
-          // Subtle time-varying background curvature
-          nest = 0.02 * sin(uTime * 0.3 + flatPos(pos).x * 1.0 + flatPos(pos).y * 0.8)
-               + 0.015 * fbm(flatPos(pos) * 0.3 + uTime * 0.05);
+          // ═══ FIELD SPACE (spacetime curvature) ═══
+          // Sum of ALL field energy densities → GR stress-energy proxy
+          float eField = orbital1s(pos, uNucleus1) * 0.3
+                       + orbital1s(pos, uNucleus2) * hasN2 * 0.3;
+          float qField = quarkWell(pos, uNucleus1) * 0.15
+                       + quarkWell(pos, uNucleus2) * hasN2 * 0.15;
+          float pField = coulomb(pos, uNucleus1) * 0.2
+                       + coulomb(pos, uNucleus2) * hasN2 * 0.2;
+          float gField = gluonTube(pos, uNucleus1, uNucleus2) * hasN2 * 0.25;
+          d = eField + qField + pField + gField;
+          nest = fieldSpaceNoise(p, uTime);
         }
         else {
-          // Fallback: vacuum noise
-          nest = 0.05 * fbm(flatPos(pos) * 0.8 + uTime * 0.1);
+          // Fallback vacuum
+          nest = (fbmWarp(p * 0.8 + uTime * 0.1, 3) - 0.5) * 0.05;
         }
         return (d + nest) * uAmplitude * uIntensity;
       }
@@ -208,17 +287,23 @@ export class FieldSheet extends Field {
         pos.y += deform + uSheetHeight * uHeightOffset;
         vDeform = deform;
         vWorldPos = (modelMatrix * vec4(pos, 1.0)).xyz;
+        vFieldId = float(uMode);
+
         // Approximate normal from deformation gradient
-        float eps = 0.05;
+        float eps = 0.03;
         vec3 posR = position + vec3(eps, 0.0, 0.0);
         vec3 posF = position + vec3(0.0, 0.0, eps);
+        vec3 posP = position;
         float dR = getDeform(posR);
         float dF = getDeform(posF);
-        float dL = posR.y + logCompress(dR) + uSheetHeight * uHeightOffset;
-        float dB = posF.y + logCompress(dF) + uSheetHeight * uHeightOffset;
-        vec3 tangent = normalize(vec3(eps, dL - pos.y, 0.0));
-        vec3 bitangent = normalize(vec3(0.0, dB - pos.y, eps));
+        float dP = getDeform(posP);
+        float yR = posR.y + logCompress(dR) + uSheetHeight * uHeightOffset;
+        float yF = posF.y + logCompress(dF) + uSheetHeight * uHeightOffset;
+        float yP = posP.y + logCompress(dP) + uSheetHeight * uHeightOffset;
+        vec3 tangent = normalize(vec3(eps, yR - yP, 0.0));
+        vec3 bitangent = normalize(vec3(0.0, yF - yP, eps));
         vNormal = normalize(cross(tangent, bitangent));
+
         gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
       }
     `;
@@ -231,34 +316,48 @@ export class FieldSheet extends Field {
       varying float vDeform;
       varying vec3 vWorldPos;
       varying vec3 vNormal;
+      varying float vFieldId;
 
       void main() {
         float deformAbs = abs(vDeform);
-        float core = clamp(deformAbs * 1.5, 0.0, 1.0);
-
-        // Fresnel rim glow based on view angle
-        vec3 viewDir = normalize(cameraPosition - vWorldPos);
-        float fresnel = 1.0 - max(dot(normalize(vNormal), viewDir), 0.0);
-        fresnel = pow(fresnel, 2.0) * 0.5;
-
-        // Base color
-        vec3 color = uColor * (0.15 + core * 0.85);
-
-        // Height-based glow (hotter at peaks)
-        float glow = smoothstep(0.05, 0.8, deformAbs);
-        vec3 glowColor = uMode == 5
-          ? vec3(1.0, 0.95, 0.85)  // warm white for spacetime
-          : mix(uColor, vec3(1.0), 0.5);
-        color += glowColor * glow * 0.35;
+        float core = clamp(deformAbs * 1.8, 0.0, 1.0);
 
         // Fresnel rim
-        color += uColor * fresnel * 0.4;
+        vec3 viewDir = normalize(cameraPosition - vWorldPos);
+        float fresnel = 1.0 - max(dot(normalize(vNormal), viewDir), 0.0);
+        fresnel = pow(fresnel, 2.0);
 
-        // Alpha
-        float alpha = clamp(0.25 + core * 0.60, 0.0, 0.85);
+        // Curvature-based color (steepness glow)
+        float steep = 1.0 - fresnel;
+
+        // Per-field color shaping
+        vec3 color;
+        float alpha;
+
+        if (uMode == 5) {
+          // Field Space: white → warm where curved, cool where flat
+          float temp = core * 0.7 + steep * 0.3;
+          color = mix(vec3(0.1, 0.08, 0.15), vec3(1.0, 0.95, 0.8), temp);
+          float rimGlow = pow(fresnel, 3.0) * 0.6;
+          color += vec3(0.3, 0.2, 0.5) * rimGlow;
+          alpha = clamp(0.30 + core * 0.55, 0.0, 0.80);
+        } else {
+          // Field sheets
+          color = uColor * (0.12 + core * 0.88);
+          float glow = smoothstep(0.05, 0.6, deformAbs);
+          color += mix(uColor, vec3(1.0), 0.6) * glow * 0.30;
+          color += uColor * fresnel * 0.35;
+          alpha = clamp(0.22 + core * 0.63, 0.0, 0.85);
+        }
+
+        // Edge fade for all fields
+        float edgeFade = 1.0;
+        if (uMode == 5) {
+          edgeFade = 1.0; // full sheet visible
+        }
+
         if (alpha < 0.01) discard;
-
-        gl_FragColor = vec4(color, alpha);
+        gl_FragColor = vec4(color * edgeFade, alpha * edgeFade);
       }
     `;
 

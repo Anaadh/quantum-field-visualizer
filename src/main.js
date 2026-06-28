@@ -30,16 +30,16 @@ controls.update();
 // Layered at different Y-heights like a stack of quantum field "surfaces."
 
 const upQuark = new FieldSheet('Up Quark', 0xff3333, 1, {
-  size: 14, segments: 80, height: -3,
+  size: 14, segments: 180, height: -3,
 });
 const downQuark = new FieldSheet('Down Quark', 0x33ff33, 1, {
-  size: 14, segments: 80, height: -1.5,
+  size: 14, segments: 180, height: -1.5,
 });
 const electron = new FieldSheet('Electron', 0x3388ff, 2, {
-  size: 14, segments: 80, height: 0,
+  size: 14, segments: 200, height: 0,
 });
 const photon = new FieldSheet('Photon', 0xff22dd, 4, {
-  size: 14, segments: 80, height: 1.5,
+  size: 14, segments: 180, height: 1.5,
 });
 const gluon = new GluonField('Gluon', 0xffd700);
 const fieldSpace = new FieldSheet('Field Space', 0xffffff, 5, {
