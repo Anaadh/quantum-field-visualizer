@@ -13,6 +13,7 @@ export class UI {
       'Electron': true,
       'Gluon': true,
       'Photon': true,
+      'Field Space': true,
       'Playback Speed': 1.0,
       'Phase': 'Vacuum',
       'Reset': () => this._reset(),
@@ -20,6 +21,7 @@ export class UI {
       'Clip Axis': 'X',
       'Clip Position': 0,
       'Bloom Intensity': 0.5,
+      'Field Offset': 1.0,
     };
 
     // Layer toggles
@@ -39,12 +41,22 @@ export class UI {
     layers.add(state, 'Photon').name('Photon').onChange((v) => {
       this.fields.photon.visible = v;
     });
+    layers.add(state, 'Field Space').name('Field Space').onChange((v) => {
+      this.fields.fieldSpace.visible = v;
+    });
     layers.open();
 
     // Simulation controls
     const sim = this.gui.addFolder('Simulation');
     sim.add(state, 'Playback Speed', 0, 3, 0.1).name('Speed').onChange((v) => {
       this.sim.setSpeed(v);
+    });
+    sim.add(state, 'Field Offset', 0, 1.5, 0.05).name('Field Offset').onChange((v) => {
+      Object.values(this.fields).forEach((f) => {
+        if (f._uniforms && f._uniforms.uHeightOffset) {
+          f._uniforms.uHeightOffset.value = v;
+        }
+      });
     });
     this._phaseDisplay = sim.add(state, 'Phase').name('Phase').disable();
     sim.add(state, 'Reset').name('⟳ Reset');

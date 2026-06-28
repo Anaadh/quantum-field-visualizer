@@ -48,6 +48,11 @@ export class Phase2_Hydrogen {
       intensity: gluonIntensity,
       nuclei: [nucleus],
     });
+    this.fields.fieldSpace.update(t, {
+      intensity: 0.2 + quarkIntensity * 0.4,
+      nuclei: [nucleus],
+      phaseParams: new THREE.Vector4(0.8, 0, t * 0.3, 0),
+    });
     this.fields.photon.update(t, {
       intensity: photonIntensity,
       nuclei: [nucleus],

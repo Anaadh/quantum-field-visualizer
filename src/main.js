@@ -42,8 +42,11 @@ const photon = new FieldSheet('Photon', 0xff22dd, 4, {
   size: 14, segments: 80, height: 1.5,
 });
 const gluon = new GluonField('Gluon', 0xffd700);
+const fieldSpace = new FieldSheet('Field Space', 0xffffff, 5, {
+  size: 14, segments: 100, height: 3.5, amplitude: 0.5, logScale: 0.6,
+});
 
-const fields = { upQuark, downQuark, electron, gluon, photon };
+const fields = { upQuark, downQuark, electron, gluon, photon, fieldSpace };
 
 // Register all fields
 Object.values(fields).forEach((f) => sceneManager.addField(f));

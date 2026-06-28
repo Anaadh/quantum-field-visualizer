@@ -54,6 +54,11 @@ export class Phase3_Molecule {
       intensity: gluonIntensity,
       nuclei: [nucleus1, nucleus2],
     });
+    this.fields.fieldSpace.update(t, {
+      intensity: 0.3 + photonMerge * 0.5,
+      nuclei: [nucleus1, nucleus2],
+      phaseParams: new THREE.Vector4(0.5 + moveProgress * 0.5, 0, t * 0.2, 0),
+    });
     this.fields.photon.update(t, {
       intensity: 0.5 + photonMerge * 0.5,
       nuclei: [nucleus1, nucleus2],

@@ -24,6 +24,11 @@ export class Phase1_Vacuum {
       intensity: 0,
       nuclei: [],
     });
+    this.fields.fieldSpace.update(t, {
+      intensity: 0.3 + Math.sin(t * 0.15) * 0.05,
+      nuclei: [{ position: new THREE.Vector3(0, 0, 0) }],
+      phaseParams: new THREE.Vector4(0, 0, t * 0.1, 0),
+    });
     this.fields.photon.update(t, {
       intensity: 0.2 + Math.sin(t * 0.4) * 0.05,
       nuclei: [{ position: new THREE.Vector3(0, 0, 0) }],
