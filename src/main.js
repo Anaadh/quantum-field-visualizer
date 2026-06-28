@@ -1,44 +1,59 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { SceneManager } from './SceneManager.js';
-import { UpQuarkField, DownQuarkField } from './fields/QuarkField.js';
-import { ElectronField } from './fields/ElectronField.js';
+import { FieldSheet } from './fields/FieldSheet.js';
 import { GluonField } from './fields/GluonField.js';
-import { PhotonField } from './fields/PhotonField.js';
 import { SimulationManager } from './simulation/SimulationManager.js';
 import { UI } from './controls/UI.js';
 
 // --- Setup Scene ---
 const canvas = document.createElement('canvas');
 document.body.appendChild(canvas);
-
 const sceneManager = new SceneManager(canvas);
+sceneManager.scene.background = new THREE.Color(0x0a0a0f);
+
+// --- Camera positioned to view sheets from above ---
+sceneManager.camera.position.set(6, 8, 8);
+sceneManager.camera.lookAt(0, 0, 0);
 
 // --- Controls ---
 const controls = new OrbitControls(sceneManager.camera, canvas);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
-controls.minDistance = 2;
-controls.maxDistance = 20;
+controls.target.set(0, 0, 0);
+controls.minDistance = 5;
+controls.maxDistance = 25;
+controls.update();
 
-// Add ambient reference grid for spatial context
-const gridHelper = new THREE.GridHelper(10, 10, 0x444466, 0x222244);
-gridHelper.position.y = -3;
-sceneManager.scene.add(gridHelper);
+// --- Create Field Sheets ---
+// Each sheet is a 2D grid that deforms based on field interactions.
+// Layered at different Y-heights like a stack of quantum field "surfaces."
 
-// --- Create Fields ---
-const upQuark = new UpQuarkField();
-const downQuark = new DownQuarkField();
-const electron = new ElectronField();
+const upQuark = new FieldSheet('Up Quark', 0xff3333, 1, {
+  size: 14, segments: 80, height: -3,
+});
+const downQuark = new FieldSheet('Down Quark', 0x33ff33, 1, {
+  size: 14, segments: 80, height: -1.5,
+});
+const electron = new FieldSheet('Electron', 0x3388ff, 2, {
+  size: 14, segments: 80, height: 0,
+});
+const photon = new FieldSheet('Photon', 0xff22dd, 4, {
+  size: 14, segments: 80, height: 1.5,
+});
 const gluon = new GluonField('Gluon', 0xffd700);
-const photon = new PhotonField();
 
 const fields = { upQuark, downQuark, electron, gluon, photon };
 
-// Register all fields with scene
+// Register all fields
 Object.values(fields).forEach((f) => sceneManager.addField(f));
 
+// Subtle ambient grid for spatial reference
+const gridHelper = new THREE.GridHelper(14, 14, 0x222244, 0x111133);
+sceneManager.scene.add(gridHelper);
+
 // --- Simulation ---
+// Phase1_Vacuum uses FieldSheet's update(), passing intensity and nucleus positions
 const sim = new SimulationManager(fields);
 sim.onPhaseChange = (phase) => {
   if (ui) ui.updateDisplay(phase);
@@ -53,27 +68,18 @@ let lastTime = 0;
 
 function animate(time) {
   requestAnimationFrame(animate);
-
   const now = time / 1000;
   const deltaTime = lastTime ? Math.min(now - lastTime, 0.05) : 0.016;
   lastTime = now;
 
-  // Update simulation (which updates all fields internally)
   sim.update(deltaTime);
-
-  // Update controls
   controls.update();
-
-  // Render directly to screen
   sceneManager.render(now);
 }
 animate(0);
 
-// --- Resize ---
 window.addEventListener('resize', () => {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-  sceneManager.resize(w, h);
+  sceneManager.resize(window.innerWidth, window.innerHeight);
 });
 
 export { sceneManager, fields, sim };
