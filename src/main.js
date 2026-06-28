@@ -36,10 +36,10 @@ starGeo.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
 starGeo.setAttribute('size', new THREE.BufferAttribute(starSizes, 1));
 
 const starMat = new THREE.PointsMaterial({
-  size: 0.15,
+  size: 0.12,
   vertexColors: true,
   transparent: true,
-  opacity: 0.8,
+  opacity: 0.4,
   blending: THREE.AdditiveBlending,
   depthWrite: false,
   sizeAttenuation: true,
@@ -65,31 +65,31 @@ controls.update();
 // Layered at different Y-heights like a stack of quantum field "surfaces."
 
 const upQuark = new FieldSheet('Up Quark', 0xff3333, 1, {
-  size: 14, segments: 180, height: -3,
+  size: 14, segments: 280, height: -3,
 });
 const downQuark = new FieldSheet('Down Quark', 0x33ff33, 1, {
-  size: 14, segments: 180, height: -1.5,
+  size: 14, segments: 280, height: -1.5,
 });
 const electron = new FieldSheet('Electron', 0x3388ff, 2, {
-  size: 14, segments: 200, height: 0,
+  size: 14, segments: 320, height: 0,
 });
 const photon = new FieldSheet('Photon', 0xff22dd, 4, {
-  size: 14, segments: 180, height: 1.5,
+  size: 14, segments: 280, height: 1.5,
 });
 const gluon = new GluonField('Gluon', 0xffd700);
 const fieldSpace = new FieldSheet('Field Space', 0xffffff, 5, {
-  size: 14, segments: 100, height: 3.5, amplitude: 1.0, logScale: 0.6,
+  size: 14, segments: 200, height: 3.5, amplitude: 1.0, logScale: 0.6,
 });
 
 // Anti-matter sheets (for annihilation scenario — invisible by default)
 const antiUpQuark = new FieldSheet('Anti-Up Quark', 0xff3333, 1, {
-  size: 14, segments: 180, height: -3, antiMatter: true,
+  size: 14, segments: 280, height: -3, antiMatter: true,
 });
 const antiDownQuark = new FieldSheet('Anti-Down Quark', 0x33ff33, 1, {
-  size: 14, segments: 180, height: -1.5, antiMatter: true,
+  size: 14, segments: 280, height: -1.5, antiMatter: true,
 });
 const positron = new FieldSheet('Positron', 0x3388ff, 2, {
-  size: 14, segments: 200, height: 0, antiMatter: true,
+  size: 14, segments: 320, height: 0, antiMatter: true,
 });
 antiUpQuark.visible = false;
 antiDownQuark.visible = false;

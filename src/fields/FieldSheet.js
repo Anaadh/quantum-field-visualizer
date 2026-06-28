@@ -346,6 +346,27 @@ export class FieldSheet extends Field {
       varying float vFieldId;
       varying float vAntiWeight;
 
+      // Edge fade: 0 at sheet edge, 1 at center
+      float edgeFade(vec3 worldPos) {
+        // Sheet is ~7 units radius, fade last 2 units
+        float dist = length(worldPos.xz);
+        return 1.0 - smoothstep(4.5, 6.8, dist);
+      }
+
+      // Neon anti-matter palette
+      vec3 neonAntiColor(vec3 matterColor, int mode) {
+        if (mode == 1) {
+          return mix(vec3(0.0, 1.0, 1.0), vec3(1.0, 0.2, 0.6), 0.4);
+        } else if (mode == 2) {
+          return vec3(1.0, 0.2, 0.8);
+        } else if (mode == 4) {
+          return vec3(0.2, 1.0, 0.4);
+        }
+        // Default: vivid inverted with boost
+        vec3 inv = vec3(1.0) - matterColor;
+        return clamp(inv * 1.5, 0.0, 1.0);
+      }
+
       void main() {
         float deformAbs = abs(vDeform);
         float core = clamp(deformAbs * 1.8, 0.0, 1.0);
@@ -357,31 +378,37 @@ export class FieldSheet extends Field {
         float steep = 1.0 - max(dot(n, viewDir), 0.0);
         steep = 1.0 - pow(steep, 2.0);
 
-        // Deformation-based color gradient: hot peaks get brighter/whiter
+        // Deformation-based heat index
         float heat = pow(core, 1.5);
-        float glowIntensity = heat * 0.6;
+        float glowIntensity = heat * 0.5;
 
-        // Anti-matter color inversion
+        // Anti-matter: neon palette
         vec3 baseColor = uColor;
-        vec3 antiColor = vec3(1.0) - uColor;
-        if (length(uColor) < 0.5) {
-          antiColor = vec3(1.0) - uColor * 1.5;
-        }
+        vec3 antiColor = neonAntiColor(uColor, uMode);
         vec3 fieldColor = mix(baseColor, antiColor, uAntiMatter);
 
         // Per-field rim glow colors
         vec3 rimColor;
         if (uMode == 1) {
-          rimColor = mix(vec3(1.0, 0.3, 0.1), vec3(0.5, 0.1, 0.3), uAntiMatter);
+          rimColor = mix(vec3(1.0, 0.3, 0.1), vec3(0.0, 1.0, 1.0), uAntiMatter);
         } else if (uMode == 2) {
-          rimColor = mix(vec3(0.2, 0.5, 1.0), vec3(1.0, 0.5, 0.8), uAntiMatter);
+          rimColor = mix(vec3(0.2, 0.5, 1.0), vec3(1.0, 0.2, 0.8), uAntiMatter);
         } else if (uMode == 3) {
           rimColor = mix(vec3(1.0, 0.8, 0.0), vec3(0.0, 0.2, 1.0), uAntiMatter);
         } else if (uMode == 4) {
-          rimColor = mix(vec3(1.0, 0.1, 0.8), vec3(0.0, 0.8, 0.2), uAntiMatter);
+          rimColor = mix(vec3(1.0, 0.1, 0.8), vec3(0.2, 1.0, 0.4), uAntiMatter);
         } else {
           rimColor = vec3(0.3, 0.2, 0.6);
         }
+
+        // Edge fade
+        float edge = edgeFade(vWorldPos);
+        float edgeMask = edge;  // 1 in center, 0 at edge
+
+        // Glassy specular highlight on steep deformation slopes
+        vec3 halfDir = normalize(viewDir + vec3(0.0, 1.0, 0.0));
+        float spec = pow(max(dot(n, halfDir), 0.0), 16.0);
+        float specIntensity = spec * steep * 0.3;
 
         vec3 color;
         float alpha;
@@ -390,41 +417,46 @@ export class FieldSheet extends Field {
           // Field Space: spacetime curvature — more dramatic
           float temp = core * 0.85 + steep * 0.15;
           color = mix(vec3(0.02, 0.01, 0.06), vec3(1.0, 0.98, 0.85), temp);
-          float rimGlow = pow(fresnel, 2.0) * 0.8;
+          float rimGlow = pow(fresnel, 2.0) * 0.6;
           color += vec3(0.4, 0.3, 0.7) * rimGlow;
-          // Deformation peaks get hot white
-          color += vec3(1.0, 0.95, 0.9) * heat * 0.5;
-          // Annihilation flash: pure white burst
+          // Deformation peaks get hot white (dimmed)
+          color += vec3(1.0, 0.95, 0.9) * heat * 0.3;
+          // Annihilation flash
           if (uAnnihilation > 0.01) {
             float flash = smoothstep(0.0, 0.5, uAnnihilation) * (1.0 - smoothstep(0.5, 1.5, uAnnihilation));
-            color += vec3(1.0, 1.0, 0.95) * flash * 3.0;
+            color += vec3(1.0, 1.0, 0.95) * flash * 2.0;
           }
-          alpha = clamp(0.35 + core * 0.60, 0.0, 0.90);
+          alpha = clamp(0.20 + core * 0.35, 0.0, 0.55);
         } else {
-          // Core color with heat gradient
-          color = fieldColor * (0.08 + core * 0.70);
-          // Heat glow — peaks go toward white
-          vec3 heatColor = mix(fieldColor, vec3(1.0), 0.7);
-          color += heatColor * heat * 0.5;
+          // Core color with heat gradient — reduced intensity for NormalBlending
+          color = fieldColor * (0.04 + core * 0.35);
+          // Heat glow — peaks go toward white (subtler)
+          vec3 heatColor = mix(fieldColor, vec3(1.0), 0.5);
+          color += heatColor * heat * 0.25;
 
-          // Dramatic rim glow
+          // Rim glow
           float rimPower = pow(fresnel, 2.0);
-          color += rimColor * rimPower * 0.7;
+          color += rimColor * rimPower * 0.4;
 
           // Steep-face glow
-          color += fieldColor * steep * 0.15;
+          color += fieldColor * steep * 0.08;
+
+          // Glassy specular highlight
+          color += vec3(1.0) * specIntensity;
 
           // Subtle time-based oscillation
           float pulse = 0.5 + 0.5 * sin(uTime * 0.5 + core * 3.0);
-          color += fieldColor * glowIntensity * 0.15 * pulse;
+          color += fieldColor * glowIntensity * 0.10 * pulse;
 
           // Annihilation glow
           if (uAnnihilation > 0.01 && (uMode == 4 || uMode == 1 || uMode == 2)) {
             float flash = smoothstep(0.0, 0.5, uAnnihilation) * (1.0 - smoothstep(0.5, 2.0, uAnnihilation));
-            color += vec3(1.0, 0.9, 0.7) * flash * 3.0;
+            color += vec3(1.0, 0.9, 0.7) * flash * 2.0;
           }
 
-          alpha = clamp(0.20 + core * 0.65 + heat * 0.15, 0.0, 0.90);
+          // Apply edge fade to alpha — sheets fade at borders for glassy look
+          alpha = clamp(0.12 + core * 0.33, 0.0, 0.50);
+          alpha *= edgeMask;
         }
 
         if (alpha < 0.01) discard;
@@ -437,7 +469,7 @@ export class FieldSheet extends Field {
       vertexShader: vert,
       fragmentShader: frag,
       transparent: true,
-      blending: THREE.AdditiveBlending,
+      blending: THREE.NormalBlending,
       depthWrite: false,
       side: THREE.DoubleSide,
     });

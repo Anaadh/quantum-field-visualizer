@@ -126,7 +126,7 @@ export class UI {
       transform: translateX(-50%);
       width: 400px;
       max-width: 80vw;
-      z-index: 100;
+      z-index: 10;
       font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
       user-select: none;
     `;
@@ -137,9 +137,9 @@ export class UI {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 4px;
-      color: rgba(255,255,255,0.6);
-      font-size: 11px;
+      margin-bottom: 2px;
+      color: rgba(255,255,255,0.35);
+      font-size: 10px;
       letter-spacing: 0.5px;
       text-transform: uppercase;
     `;
@@ -155,11 +155,11 @@ export class UI {
     const track = document.createElement('div');
     track.style.cssText = `
       width: 100%;
-      height: 4px;
-      background: rgba(255,255,255,0.08);
-      border-radius: 2px;
+      height: 2px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 1px;
       overflow: hidden;
-      box-shadow: inset 0 0 4px rgba(0,0,0,0.5);
+      box-shadow: inset 0 0 2px rgba(0,0,0,0.5);
     `;
 
     // Fill
@@ -168,9 +168,9 @@ export class UI {
       width: 0%;
       height: 100%;
       background: linear-gradient(90deg, #4488ff, #ff44dd, #ffdd44);
-      border-radius: 2px;
+      border-radius: 1px;
       transition: width 0.3s ease;
-      box-shadow: 0 0 8px rgba(68,136,255,0.4);
+      box-shadow: 0 0 4px rgba(68,136,255,0.2);
     `;
     track.appendChild(this._progressFill);
     container.appendChild(track);
