@@ -47,9 +47,11 @@ Anti-matter fields invert to complementary colors with negative sheet deformatio
 
 | Control | Type | Description |
 |---------|------|-------------|
+| Scenario Selector | Dropdown | Pick between 3 scenarios (Hydrogen Formation / H₂ Bonding / Annihilation) |
 | Layer toggles | Checkboxes | Show/hide any of the 6 fields independently |
 | Field Offset | Slider (0–1.5) | Vertical spread between sheets. At 0, all sheets overlap on the same plane |
 | Playback Speed | Slider (0–3×) | Slow down to observe gluon oscillations or speed through phases |
+| Play / Pause | Button | Start or pause the current scenario |
 | Phase | Read-only | Current simulation phase indicator |
 | Reset | Button | Restart the simulation |
 | Cross-Section | Enabled + Axis + Position | Clip plane slices through the volume |
@@ -70,10 +72,11 @@ src/
 │   ├── PhotonField.js       # (legacy — unused, kept for reference)
 │   └── VolumeField.js       # (legacy volume renderer — unused)
 ├── simulation/
-│   ├── SimulationManager.js # Phase state machine
-│   ├── Phase1_Vacuum.js     # 0–10s
-│   ├── Phase2_Hydrogen.js   # 10–25s
-│   └── Phase3_Molecule.js   # 25–45s
+│   ├── SimulationManager.js # Scenario state machine (play/pause, scenario select)
+│   ├── scenarios/
+│   │   ├── HydrogenFormation.js  # Hydrogen atom from vacuum (22s timeline)
+│   │   ├── HydrogenBonding.js    # H₂ covalent bond formation (30s timeline)
+│   │   └── Annihilation.js       # H + anti-H → pure energy (25s timeline)
 ├── shaders/
 │   └── ...                  # Legacy volumetric shaders
 └── controls/

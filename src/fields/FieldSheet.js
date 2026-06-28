@@ -81,7 +81,7 @@ export class FieldSheet extends Field {
       uTime: { value: 0 },
       uNucleus1: { value: new THREE.Vector3(0, 0, 0) },
       uNucleus2: { value: new THREE.Vector3(5, 0, 0) },
-      uNucleus3: { value: new THREE.Vector3(-5, 0, 0) },
+      uNucleus3: { value: new THREE.Vector3(0, 0, 0) },
       uMode: { value: mode },
       uPhaseParams: { value: new THREE.Vector4(0, 0, 0, 0) },
       uBondFormed: { value: 0.0 },
@@ -204,10 +204,10 @@ export class FieldSheet extends Field {
       }
 
       float fieldSpaceNoise(vec2 p, float t) {
-        vec2 np = p * 0.8 + vec2(17.3, 29.1) + t * 0.05;
-        float n1 = fbmWarp(np, 4) * 2.0 - 1.0;
-        float n2 = voronoi(np * 3.0 + t * 0.02) * 0.5;
-        return n1 * 0.03 + n2 * 0.02;
+        vec2 np = p * 0.6 + vec2(17.3, 29.1) + t * 0.03;
+        float n1 = fbmWarp(np, 5) * 3.0 - 1.0;
+        float n2 = voronoi(np * 2.0 + t * 0.03) * 0.8;
+        return n1 * 0.05 + n2 * 0.04;
       }
 
       // Core field deformation
@@ -267,24 +267,28 @@ export class FieldSheet extends Field {
         }
         else if (uMode == 5) {
           // ═══ FIELD SPACE (spacetime curvature) ═══
-          float eField = orbital1s(pos, uNucleus1) * 0.3
-                       + orbital1s(pos, uNucleus2) * hasN2 * 0.3
-                       + orbital1s(pos, uNucleus3) * hasN3 * 0.3;
-          float qField = quarkWell(pos, uNucleus1) * 0.15
-                       + quarkWell(pos, uNucleus2) * hasN2 * 0.15
-                       + quarkWell(pos, uNucleus3) * hasN3 * 0.15;
-          float pField = coulomb(pos, uNucleus1) * 0.2
-                       + coulomb(pos, uNucleus2) * hasN2 * 0.2
-                       + coulomb(pos, uNucleus3) * hasN3 * 0.2;
+          // Dramatic: each field contributes more strongly
+          float eField = orbital1s(pos, uNucleus1) * 0.5
+                       + orbital1s(pos, uNucleus2) * hasN2 * 0.5
+                       + orbital1s(pos, uNucleus3) * hasN3 * 0.5;
+          float qField = quarkWell(pos, uNucleus1) * 0.3
+                       + quarkWell(pos, uNucleus2) * hasN2 * 0.3
+                       + quarkWell(pos, uNucleus3) * hasN3 * 0.3;
+          float pField = coulomb(pos, uNucleus1) * 0.4
+                       + coulomb(pos, uNucleus2) * hasN2 * 0.4
+                       + coulomb(pos, uNucleus3) * hasN3 * 0.4;
           float gField = 0.0;
           if (hasN2 > 0.5 && length(flatPos(uNucleus1) - flatPos(uNucleus2)) < 6.0) {
-            gField = gluonTube(pos, uNucleus1, uNucleus2) * 0.25;
+            gField = gluonTube(pos, uNucleus1, uNucleus2) * 0.4;
           }
           d = eField + qField + pField + gField;
           nest = fieldSpaceNoise(p, uTime);
+          // Extra spacetime ripple from time
+          float ripple = sin(length(p) * 2.0 - uTime * 0.8) * 0.15;
+          d += ripple;
           // Annihilation energy adds to curvature
           if (uAnnihilation > 0.01) {
-            d += annihilationBurst(pos, uAnnihilationCenter, uAnnihilation) * 0.3;
+            d += annihilationBurst(pos, uAnnihilationCenter, uAnnihilation) * 0.5;
           }
         }
         else {
@@ -334,6 +338,7 @@ export class FieldSheet extends Field {
       uniform float uAnnihilation;
       uniform vec3 uAnnihilationCenter;
       uniform int uMode;
+      uniform float uTime;
 
       varying float vDeform;
       varying vec3 vWorldPos;
@@ -348,44 +353,78 @@ export class FieldSheet extends Field {
         vec3 viewDir = normalize(cameraPosition - vWorldPos);
         vec3 n = normalize(vNormal);
         float fresnel = 1.0 - max(dot(n, viewDir), 0.0);
-        fresnel = pow(fresnel, 2.0);
-        float steep = 1.0 - fresnel;
+        fresnel = pow(fresnel, 3.0);
+        float steep = 1.0 - max(dot(n, viewDir), 0.0);
+        steep = 1.0 - pow(steep, 2.0);
+
+        // Deformation-based color gradient: hot peaks get brighter/whiter
+        float heat = pow(core, 1.5);
+        float glowIntensity = heat * 0.6;
 
         // Anti-matter color inversion
         vec3 baseColor = uColor;
-        vec3 antiColor = vec3(1.0) - uColor;  // complementary
-        // For dark colors, boost the complement
+        vec3 antiColor = vec3(1.0) - uColor;
         if (length(uColor) < 0.5) {
           antiColor = vec3(1.0) - uColor * 1.5;
         }
         vec3 fieldColor = mix(baseColor, antiColor, uAntiMatter);
 
+        // Per-field rim glow colors
+        vec3 rimColor;
+        if (uMode == 1) {
+          rimColor = mix(vec3(1.0, 0.3, 0.1), vec3(0.5, 0.1, 0.3), uAntiMatter);
+        } else if (uMode == 2) {
+          rimColor = mix(vec3(0.2, 0.5, 1.0), vec3(1.0, 0.5, 0.8), uAntiMatter);
+        } else if (uMode == 3) {
+          rimColor = mix(vec3(1.0, 0.8, 0.0), vec3(0.0, 0.2, 1.0), uAntiMatter);
+        } else if (uMode == 4) {
+          rimColor = mix(vec3(1.0, 0.1, 0.8), vec3(0.0, 0.8, 0.2), uAntiMatter);
+        } else {
+          rimColor = vec3(0.3, 0.2, 0.6);
+        }
+
         vec3 color;
         float alpha;
 
         if (uMode == 5) {
-          // Field Space: spacetime curvature
-          float temp = core * 0.7 + steep * 0.3;
-          color = mix(vec3(0.1, 0.08, 0.15), vec3(1.0, 0.95, 0.8), temp);
-          float rimGlow = pow(fresnel, 3.0) * 0.6;
-          color += vec3(0.3, 0.2, 0.5) * rimGlow;
+          // Field Space: spacetime curvature — more dramatic
+          float temp = core * 0.85 + steep * 0.15;
+          color = mix(vec3(0.02, 0.01, 0.06), vec3(1.0, 0.98, 0.85), temp);
+          float rimGlow = pow(fresnel, 2.0) * 0.8;
+          color += vec3(0.4, 0.3, 0.7) * rimGlow;
+          // Deformation peaks get hot white
+          color += vec3(1.0, 0.95, 0.9) * heat * 0.5;
           // Annihilation flash: pure white burst
           if (uAnnihilation > 0.01) {
             float flash = smoothstep(0.0, 0.5, uAnnihilation) * (1.0 - smoothstep(0.5, 1.5, uAnnihilation));
-            color += vec3(1.0, 0.95, 0.8) * flash * 2.0;
+            color += vec3(1.0, 1.0, 0.95) * flash * 3.0;
           }
-          alpha = clamp(0.30 + core * 0.55, 0.0, 0.80);
+          alpha = clamp(0.35 + core * 0.60, 0.0, 0.90);
         } else {
-          color = fieldColor * (0.12 + core * 0.88);
-          float glow = smoothstep(0.05, 0.6, deformAbs);
-          color += mix(fieldColor, vec3(1.0), 0.6) * glow * 0.30;
-          color += fieldColor * fresnel * 0.35;
+          // Core color with heat gradient
+          color = fieldColor * (0.08 + core * 0.70);
+          // Heat glow — peaks go toward white
+          vec3 heatColor = mix(fieldColor, vec3(1.0), 0.7);
+          color += heatColor * heat * 0.5;
+
+          // Dramatic rim glow
+          float rimPower = pow(fresnel, 2.0);
+          color += rimColor * rimPower * 0.7;
+
+          // Steep-face glow
+          color += fieldColor * steep * 0.15;
+
+          // Subtle time-based oscillation
+          float pulse = 0.5 + 0.5 * sin(uTime * 0.5 + core * 3.0);
+          color += fieldColor * glowIntensity * 0.15 * pulse;
+
           // Annihilation glow
-          if (uAnnihilation > 0.01 && uMode == 4) {
+          if (uAnnihilation > 0.01 && (uMode == 4 || uMode == 1 || uMode == 2)) {
             float flash = smoothstep(0.0, 0.5, uAnnihilation) * (1.0 - smoothstep(0.5, 2.0, uAnnihilation));
             color += vec3(1.0, 0.9, 0.7) * flash * 3.0;
           }
-          alpha = clamp(0.22 + core * 0.63, 0.0, 0.85);
+
+          alpha = clamp(0.20 + core * 0.65 + heat * 0.15, 0.0, 0.90);
         }
 
         if (alpha < 0.01) discard;
@@ -418,6 +457,9 @@ export class FieldSheet extends Field {
       }
       if (phaseData.nuclei && phaseData.nuclei.length >= 3) {
         this._uniforms.uNucleus3.value.copy(phaseData.nuclei[2].position);
+      } else if (phaseData.nuclei && phaseData.nuclei.length >= 1) {
+        // Reset uNucleus3 to match uNucleus1 so hasN3 stays 0
+        this._uniforms.uNucleus3.value.copy(phaseData.nuclei[0].position);
       }
       if (phaseData.phaseParams) {
         this._uniforms.uPhaseParams.value.copy(phaseData.phaseParams);

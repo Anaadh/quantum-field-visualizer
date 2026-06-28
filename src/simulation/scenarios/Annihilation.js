@@ -15,8 +15,10 @@ function smoothstep(edge0, edge1, x) {
  *   12-18s Photon ring expands, debris fades
  *   18-25s Back to vacuum
  *
- * Anti-matter: The anti-H nucleus (antiproton) is marked with antiMatter=1
- * When matter and anti-matter overlap, the fields cancel (destructive interference)
+ * Anti-matter: Separate anti-matter FieldSheet instances (antiUpQuark,
+ * antiDownQuark, positron) are positioned at the anti-H nucleus and
+ * have antiMatter=true, which inverts colors and negates deformation.
+ * When matter and anti-matter overlap, the fields visually cancel
  * releasing pure energy as a photon burst.
  */
 export class Annihilation {
@@ -83,59 +85,89 @@ export class Annihilation {
       allIntensity = vacuumFade;
     }
 
+    // Show anti-matter sheets during annihilation (they're invisible in other scenarios)
+    this.fields.antiUpQuark.visible = allIntensity > 0.01;
+    this.fields.antiDownQuark.visible = allIntensity > 0.01;
+    this.fields.positron.visible = allIntensity > 0.01;
+
     // Hydrogen nucleus (matter)
     const hNuc = { position: this.hPos };
     // Antihydrogen nucleus (anti-matter)
     const ahNuc = { position: this.antiHPos };
 
-    // --- QUARK FIELDS ---
-    // During contact, quarks and anti-quarks annihilate via gluon burst
+    // Combined nuclei list (when separated, show both; when close, show one)
+    const bothNuclei = this.hPos.distanceTo(this.antiHPos) > 0.5
+      ? [hNuc, ahNuc]
+      : [hNuc];
+    const annihilationActive = t > 9 && t < 12;
+
+    // --- MATTER QUARK FIELDS (at H position) ---
     this.fields.upQuark.update(t, {
       intensity: allIntensity < 0.01 ? 0 : hIntensity * allIntensity,
-      nuclei: this.hPos.distanceTo(this.antiHPos) > 0.5
-        ? [hNuc, ahNuc]
-        : [hNuc],
-      antiMatter: false,
-      annihilation: t > 9 && t < 12 ? burstIntensity : 0,
+      nuclei: [hNuc],
+      annihilation: annihilationActive ? burstIntensity : 0,
       annihilationCenter: this.annihilationCenter,
     });
 
     this.fields.downQuark.update(t, {
-      intensity: allIntensity < 0.01 ? 0 : ahIntensity * allIntensity,
-      nuclei: this.hPos.distanceTo(this.antiHPos) > 0.5
-        ? [hNuc, ahNuc]
-        : [hNuc],
-      antiMatter: false,
-      annihilation: t > 9 && t < 12 ? burstIntensity : 0,
+      intensity: allIntensity < 0.01 ? 0 : hIntensity * allIntensity,
+      nuclei: [hNuc],
+      annihilation: annihilationActive ? burstIntensity : 0,
       annihilationCenter: this.annihilationCenter,
     });
 
-    // --- ELECTRON / POSITRON ---
-    // Matter electron at H, anti-electron (positron) at anti-H
-    // They annihilate into photons when they meet
+    // --- ANTI-MATTER QUARK FIELDS (at anti-H position) ---
+    // These are separate sheets with antiMatter=true, showing inverted
+    // colors and negated deformation
+    this.fields.antiUpQuark.update(t, {
+      intensity: allIntensity < 0.01 ? 0 : ahIntensity * allIntensity,
+      nuclei: [ahNuc],
+      annihilation: annihilationActive ? burstIntensity : 0,
+      annihilationCenter: this.annihilationCenter,
+    });
+
+    this.fields.antiDownQuark.update(t, {
+      intensity: allIntensity < 0.01 ? 0 : ahIntensity * allIntensity,
+      nuclei: [ahNuc],
+      annihilation: annihilationActive ? burstIntensity : 0,
+      annihilationCenter: this.annihilationCenter,
+    });
+
+    // --- ELECTRON (at H) and POSITRON (at anti-H) ---
     this.fields.electron.update(t, {
-      intensity: allIntensity < 0.01 ? 0 : (hIntensity + ahIntensity * 0.5) * allIntensity,
-      nuclei: [hNuc, ahNuc],
+      intensity: allIntensity < 0.01 ? 0 : hIntensity * allIntensity,
+      nuclei: [hNuc],
       phaseParams: new THREE.Vector4(
         this.hPos.distanceTo(this.antiHPos) < 2 ? 1.0 : 0,
         0, 0, 0
       ),
-      antiMatter: false,
-      annihilation: t > 9 && t < 12 ? burstIntensity : 0,
+      annihilation: annihilationActive ? burstIntensity : 0,
+      annihilationCenter: this.annihilationCenter,
+    });
+
+    this.fields.positron.update(t, {
+      intensity: allIntensity < 0.01 ? 0 : ahIntensity * allIntensity,
+      nuclei: [ahNuc],
+      phaseParams: new THREE.Vector4(
+        this.hPos.distanceTo(this.antiHPos) < 2 ? 1.0 : 0,
+        0, 0, 0
+      ),
+      annihilation: annihilationActive ? burstIntensity : 0,
       annihilationCenter: this.annihilationCenter,
     });
 
     // --- GLUON ---
+    // Gluon field draws plasma arcs between nuclei(s)
     this.fields.gluon.update(t, {
       intensity: t < 10 ? (hIntensity + ahIntensity) * 0.5 * allIntensity : 0,
-      nuclei: [hNuc, ahNuc],
+      nuclei: bothNuclei,
     });
 
     // --- PHOTON ---
     // Photon field carries the annihilation burst
     this.fields.photon.update(t, {
       intensity: Math.max(0.2, (hIntensity + ahIntensity) * 0.5 + burstIntensity * 3) * allIntensity,
-      nuclei: [hNuc, ahNuc],
+      nuclei: bothNuclei,
       annihilation: t > 9 ? burstIntensity + afterglow * 0.3 : 0,
       annihilationCenter: this.annihilationCenter,
     });
@@ -143,7 +175,7 @@ export class Annihilation {
     // --- FIELD SPACE ---
     this.fields.fieldSpace.update(t, {
       intensity: (0.2 + (hIntensity + ahIntensity) * 0.3 + burstIntensity * 2) * allIntensity,
-      nuclei: [hNuc, ahNuc],
+      nuclei: bothNuclei,
       annihilation: t > 9 ? burstIntensity : 0,
       annihilationCenter: this.annihilationCenter,
     });

@@ -14,6 +14,9 @@ export class UI {
       'Gluon': true,
       'Photon': true,
       'Field Space': true,
+      'Anti-Up Quark': false,
+      'Anti-Down Quark': false,
+      'Positron': false,
       'Scenario': 'Hydrogen Formation',
       'Playback Speed': 1.0,
       'Phase': 'Starting...',
@@ -36,6 +39,7 @@ export class UI {
       this.sim.start();
       this.state['⏵ Start / Resume'] = 'Pause';
       state['⏵ Start / Resume'] = 'Pause';
+      this._updateProgress(0);
     });
     scenarioFolder.open();
 
@@ -58,6 +62,15 @@ export class UI {
     });
     layers.add(state, 'Field Space').name('Field Space').onChange((v) => {
       this.fields.fieldSpace.visible = v;
+    });
+    layers.add(state, 'Anti-Up Quark').name('Anti-Up Quark').onChange((v) => {
+      this.fields.antiUpQuark.visible = v;
+    });
+    layers.add(state, 'Anti-Down Quark').name('Anti-Down Quark').onChange((v) => {
+      this.fields.antiDownQuark.visible = v;
+    });
+    layers.add(state, 'Positron').name('Positron').onChange((v) => {
+      this.fields.positron.visible = v;
     });
     layers.open();
 
@@ -91,11 +104,89 @@ export class UI {
     });
     clip.open();
 
+    // --- Progress Bar (DOM overlay) ---
+    this._createProgressBar();
+
     this.state = state;
     this._clipPos = clipPos;
 
     // Initial display
     this.updateDisplay(sim.phase || 'Ready');
+    this._updateProgress(sim.elapsed / Math.max(sim.duration, 1));
+  }
+
+  _createProgressBar() {
+    // Container fixed at bottom of screen
+    const container = document.createElement('div');
+    container.id = 'progress-container';
+    container.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 400px;
+      max-width: 80vw;
+      z-index: 100;
+      font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      user-select: none;
+    `;
+
+    // Label row
+    const labelRow = document.createElement('div');
+    labelRow.style.cssText = `
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+      color: rgba(255,255,255,0.6);
+      font-size: 11px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    `;
+    this._progressLabel = document.createElement('span');
+    this._progressLabel.textContent = '0%';
+    this._phaseLabel = document.createElement('span');
+    this._phaseLabel.textContent = '';
+    labelRow.appendChild(this._progressLabel);
+    labelRow.appendChild(this._phaseLabel);
+    container.appendChild(labelRow);
+
+    // Track
+    const track = document.createElement('div');
+    track.style.cssText = `
+      width: 100%;
+      height: 4px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 2px;
+      overflow: hidden;
+      box-shadow: inset 0 0 4px rgba(0,0,0,0.5);
+    `;
+
+    // Fill
+    this._progressFill = document.createElement('div');
+    this._progressFill.style.cssText = `
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #4488ff, #ff44dd, #ffdd44);
+      border-radius: 2px;
+      transition: width 0.3s ease;
+      box-shadow: 0 0 8px rgba(68,136,255,0.4);
+    `;
+    track.appendChild(this._progressFill);
+    container.appendChild(track);
+
+    document.body.appendChild(container);
+    this._progressContainer = container;
+  }
+
+  _updateProgress(progress) {
+    const pct = Math.round(progress * 100);
+    if (this._progressFill) {
+      this._progressFill.style.width = Math.min(pct, 100) + '%';
+    }
+    if (this._progressLabel) {
+      this._progressLabel.textContent = pct + '%';
+    }
   }
 
   _startResume() {
@@ -114,6 +205,9 @@ export class UI {
     this.state['Phase'] = 'Ready';
     this.state['⏵ Start / Resume'] = '▶ Start';
     if (this._phaseDisplay) this._phaseDisplay.setValue('Ready');
+    this._updateProgress(0);
+    if (this._progressLabel) this._progressLabel.textContent = '0%';
+    if (this._phaseLabel) this._phaseLabel.textContent = '';
   }
 
   _updateClip() {
@@ -143,5 +237,12 @@ export class UI {
     if (this._phaseDisplay) {
       this._phaseDisplay.setValue(phaseName);
     }
+    if (this._phaseLabel) {
+      this._phaseLabel.textContent = phaseName;
+    }
+    // Update progress bar
+    this._updateProgress(
+      this.sim.active ? this.sim.elapsed / Math.max(this.sim.duration, 1) : 0
+    );
   }
 }

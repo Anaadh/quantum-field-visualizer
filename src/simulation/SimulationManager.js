@@ -70,6 +70,13 @@ export class SimulationManager {
       f.intensity = 1.0;
       f.visible = true;
     });
+
+    // Hide anti-matter sheets after reset (only shown during annihilation)
+    if (this.fields.antiUpQuark) {
+      this.fields.antiUpQuark.visible = false;
+      this.fields.antiDownQuark.visible = false;
+      this.fields.positron.visible = false;
+    }
   }
 
   setSpeed(val) {

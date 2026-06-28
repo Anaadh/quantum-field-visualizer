@@ -12,6 +12,41 @@ document.body.appendChild(canvas);
 const sceneManager = new SceneManager(canvas);
 sceneManager.scene.background = new THREE.Color(0x0a0a0f);
 
+// --- Starfield Background ---
+const starCount = 2000;
+const starGeo = new THREE.BufferGeometry();
+const starPos = new Float32Array(starCount * 3);
+const starColors = new Float32Array(starCount * 3);
+const starSizes = new Float32Array(starCount);
+for (let i = 0; i < starCount; i++) {
+  const radius = 40 + Math.random() * 60;
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.acos(2 * Math.random() - 1);
+  starPos[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+  starPos[i * 3 + 1] = radius * Math.cos(phi);
+  starPos[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
+  const c = 0.3 + Math.random() * 0.7;
+  starColors[i * 3] = c * (0.8 + Math.random() * 0.2);
+  starColors[i * 3 + 1] = c * (0.7 + Math.random() * 0.3);
+  starColors[i * 3 + 2] = c * (0.6 + Math.random() * 0.4);
+  starSizes[i] = 0.1 + Math.random() * 0.5;
+}
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+starGeo.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
+starGeo.setAttribute('size', new THREE.BufferAttribute(starSizes, 1));
+
+const starMat = new THREE.PointsMaterial({
+  size: 0.15,
+  vertexColors: true,
+  transparent: true,
+  opacity: 0.8,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  sizeAttenuation: true,
+});
+const stars = new THREE.Points(starGeo, starMat);
+sceneManager.scene.add(stars);
+
 // --- Camera positioned to view sheets from above ---
 sceneManager.camera.position.set(6, 8, 8);
 sceneManager.camera.lookAt(0, 0, 0);
@@ -43,10 +78,24 @@ const photon = new FieldSheet('Photon', 0xff22dd, 4, {
 });
 const gluon = new GluonField('Gluon', 0xffd700);
 const fieldSpace = new FieldSheet('Field Space', 0xffffff, 5, {
-  size: 14, segments: 100, height: 3.5, amplitude: 0.5, logScale: 0.6,
+  size: 14, segments: 100, height: 3.5, amplitude: 1.0, logScale: 0.6,
 });
 
-const fields = { upQuark, downQuark, electron, gluon, photon, fieldSpace };
+// Anti-matter sheets (for annihilation scenario — invisible by default)
+const antiUpQuark = new FieldSheet('Anti-Up Quark', 0xff3333, 1, {
+  size: 14, segments: 180, height: -3, antiMatter: true,
+});
+const antiDownQuark = new FieldSheet('Anti-Down Quark', 0x33ff33, 1, {
+  size: 14, segments: 180, height: -1.5, antiMatter: true,
+});
+const positron = new FieldSheet('Positron', 0x3388ff, 2, {
+  size: 14, segments: 200, height: 0, antiMatter: true,
+});
+antiUpQuark.visible = false;
+antiDownQuark.visible = false;
+positron.visible = false;
+
+const fields = { upQuark, downQuark, electron, gluon, photon, fieldSpace, antiUpQuark, antiDownQuark, positron };
 
 // Register all fields
 Object.values(fields).forEach((f) => sceneManager.addField(f));
@@ -60,11 +109,23 @@ const sim = new SimulationManager(fields);
 sim.onPhaseChange = (phase) => {
   if (ui) ui.updateDisplay(phase);
 };
-sim.start(); // Auto-start first scenario
 
 // --- UI ---
 const ui = new UI(sceneManager, sim, fields);
-ui.updateDisplay('vacuum');
+
+// Hide anti-matter sheets unless in annihilation scenario
+const hideAntiMatterSheets = () => {
+  fields.antiUpQuark.visible = false;
+  fields.antiDownQuark.visible = false;
+  fields.positron.visible = false;
+};
+hideAntiMatterSheets();
+
+sim.onScenarioChange = (name) => {
+  if (name !== 'annihilation') hideAntiMatterSheets();
+};
+
+sim.start(); // Auto-start first scenario
 
 // --- Animation Loop ---
 let lastTime = 0;
