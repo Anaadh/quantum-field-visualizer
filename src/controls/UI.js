@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import GUI from 'lil-gui';
 
 export class UI {
-  constructor(sceneManager, simulationManager, fields) {
-    this.gui = new GUI({ title: 'Quantum Fields', width: 280 });
-    this.sim = simulationManager;
+  constructor(sceneManager, sim, fields) {
+    this.gui = new GUI({ title: 'Quantum Fields', width: 300 });
+    this.sim = sim;
     this.fields = fields;
 
     const state = {
@@ -14,17 +14,32 @@ export class UI {
       'Gluon': true,
       'Photon': true,
       'Field Space': true,
+      'Scenario': 'Hydrogen Formation',
       'Playback Speed': 1.0,
-      'Phase': 'Vacuum',
-      'Reset': () => this._reset(),
+      'Phase': 'Starting...',
+      '⏵ Start / Resume': () => this._startResume(),
+      '⟳ Reset': () => this._reset(),
+      'Field Offset': 1.0,
       'Clip Plane': false,
       'Clip Axis': 'X',
       'Clip Position': 0,
-      'Bloom Intensity': 0.5,
-      'Field Offset': 1.0,
     };
 
-    // Layer toggles
+    // --- Scenario selector ---
+    const scenarioFolder = this.gui.addFolder('Scenario');
+    const scenarioNames = ['Hydrogen Formation', 'H₂ Molecular Bonding', 'H + Anti-H Annihilation'];
+    const scenarioKeys = ['formation', 'bonding', 'annihilation'];
+    scenarioFolder.add(state, 'Scenario', scenarioNames).name('Select').onChange((name) => {
+      const idx = scenarioNames.indexOf(name);
+      const key = scenarioKeys[idx];
+      this.sim.setScenario(key);
+      this.sim.start();
+      this.state['⏵ Start / Resume'] = 'Pause';
+      state['⏵ Start / Resume'] = 'Pause';
+    });
+    scenarioFolder.open();
+
+    // --- Layer toggles ---
     const layers = this.gui.addFolder('Layers');
     layers.add(state, 'Up Quark').name('Up Quark').onChange((v) => {
       this.fields.upQuark.visible = v;
@@ -46,23 +61,24 @@ export class UI {
     });
     layers.open();
 
-    // Simulation controls
-    const sim = this.gui.addFolder('Simulation');
-    sim.add(state, 'Playback Speed', 0, 3, 0.1).name('Speed').onChange((v) => {
+    // --- Simulation controls ---
+    const simCtrl = this.gui.addFolder('Simulation');
+    simCtrl.add(state, 'Playback Speed', 0, 3, 0.1).name('Speed').onChange((v) => {
       this.sim.setSpeed(v);
     });
-    sim.add(state, 'Field Offset', 0, 1.5, 0.05).name('Field Offset').onChange((v) => {
+    simCtrl.add(state, 'Field Offset', 0, 1.5, 0.05).name('Field Offset').onChange((v) => {
       Object.values(this.fields).forEach((f) => {
         if (f._uniforms && f._uniforms.uHeightOffset) {
           f._uniforms.uHeightOffset.value = v;
         }
       });
     });
-    this._phaseDisplay = sim.add(state, 'Phase').name('Phase').disable();
-    sim.add(state, 'Reset').name('⟳ Reset');
-    sim.open();
+    this._phaseDisplay = simCtrl.add(state, 'Phase').name('Phase').disable();
+    simCtrl.add(state, '⏵ Start / Resume').name('⏵ Play');
+    simCtrl.add(state, '⟳ Reset').name('⟳ Reset');
+    simCtrl.open();
 
-    // Cross-section controls
+    // --- Cross-section ---
     const clip = this.gui.addFolder('Cross-Section');
     const clipToggle = clip.add(state, 'Clip Plane').name('Enabled').onChange((v) => {
       this._updateClip();
@@ -77,6 +93,27 @@ export class UI {
 
     this.state = state;
     this._clipPos = clipPos;
+
+    // Initial display
+    this.updateDisplay(sim.phase || 'Ready');
+  }
+
+  _startResume() {
+    if (!this.sim.active) {
+      this.sim.start();
+      this.state['⏵ Start / Resume'] = 'Pause';
+    } else {
+      this.sim.setSpeed(this.sim.speed > 0 ? 0 : 1.0);
+      this.state['⏵ Start / Resume'] = this.sim.speed > 0 ? 'Pause' : '▶ Resume';
+    }
+  }
+
+  _reset() {
+    this.sim.reset();
+    this.state['Playback Speed'] = 1.0;
+    this.state['Phase'] = 'Ready';
+    this.state['⏵ Start / Resume'] = '▶ Start';
+    if (this._phaseDisplay) this._phaseDisplay.setValue('Ready');
   }
 
   _updateClip() {
@@ -101,17 +138,10 @@ export class UI {
     });
   }
 
-  _reset() {
-    this.sim.reset();
-    this.state['Phase'] = 'Vacuum';
-    this.state['Playback Speed'] = 1.0;
-  }
-
   updateDisplay(phaseName) {
-    const displayName = phaseName.charAt(0).toUpperCase() + phaseName.slice(1);
-    this.state['Phase'] = displayName;
+    this.state['Phase'] = phaseName;
     if (this._phaseDisplay) {
-      this._phaseDisplay.setValue(displayName);
+      this._phaseDisplay.setValue(phaseName);
     }
   }
 }

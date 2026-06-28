@@ -1,64 +1,75 @@
-import { Phase1_Vacuum } from './Phase1_Vacuum.js';
-import { Phase2_Hydrogen } from './Phase2_Hydrogen.js';
-import { Phase3_Molecule } from './Phase3_Molecule.js';
+import { HydrogenFormation } from './scenarios/HydrogenFormation.js';
+import { HydrogenBonding } from './scenarios/HydrogenBonding.js';
+import { Annihilation } from './scenarios/Annihilation.js';
 
 export class SimulationManager {
   constructor(fields) {
-    this.fields = fields;        // { upQuark, downQuark, electron, gluon, photon }
-    this.phase = 'vacuum';       // 'vacuum' | 'hydrogen' | 'molecule'
-    this.speed = 1.0;            // playback speed multiplier (0-3)
-    this.elapsed = 0;            // total simulated time in seconds
-    this.phaseElapsed = 0;       // time within current phase
-    this.progress = 0;           // 0-1 within current phase
-    this.phases = {
-      vacuum: new Phase1_Vacuum(fields),
-      hydrogen: new Phase2_Hydrogen(fields),
-      molecule: new Phase3_Molecule(fields),
+    this.fields = fields;
+
+    // Available scenarios
+    this.scenarioMap = {
+      'formation': new HydrogenFormation(fields),
+      'bonding': new HydrogenBonding(fields),
+      'annihilation': new Annihilation(fields),
     };
-    this.onPhaseChange = null;   // callback(phaseName)
+
+    this.scenarioName = 'formation';
+    this.scenario = this.scenarioMap[this.scenarioName];
+    this.speed = 1.0;
+    this.elapsed = 0;
+    this.duration = this.scenario.duration;
+    this.phase = '';
+
+    // Track if we're in the scenario (not reset/stopped)
+    this.active = false;
+
+    this.onPhaseChange = null;
+    this.onScenarioChange = null;
+  }
+
+  setScenario(name) {
+    if (!this.scenarioMap[name]) return;
+    this.scenarioName = name;
+    this.scenario = this.scenarioMap[name];
+    this.duration = this.scenario.duration;
+    this.reset();
+    if (this.onScenarioChange) this.onScenarioChange(name);
+    if (this.onPhaseChange) this.onPhaseChange(this.scenario.getPhaseName(0));
+  }
+
+  start() {
+    this.active = true;
+    this.elapsed = 0;
+    this.scenario = this.scenarioMap[this.scenarioName];
+    this.duration = this.scenario.duration;
+    this.phase = this.scenario.getPhaseName(0);
+    if (this.onPhaseChange) this.onPhaseChange(this.phase);
   }
 
   update(deltaTime) {
+    if (!this.active) return;
     const dt = deltaTime * this.speed;
-    this.elapsed += dt;
-    this.phaseElapsed += dt;
+    this.elapsed = Math.min(this.elapsed + dt, this.duration);
 
-    // Determine current phase
-    let newPhase = this.phase;
-    if (this.elapsed >= 25) newPhase = 'molecule';
-    else if (this.elapsed >= 10) newPhase = 'hydrogen';
-    else newPhase = 'vacuum';
+    this.scenario.update(this.elapsed, this.elapsed / this.duration);
 
+    const newPhase = this.scenario.getPhaseName(this.elapsed);
     if (newPhase !== this.phase) {
       this.phase = newPhase;
-      this.phaseElapsed = this.elapsed - (this.phase === 'molecule' ? 25 : this.phase === 'hydrogen' ? 10 : 0);
-      if (this.onPhaseChange) this.onPhaseChange(this.phase);
-    }
-
-    this.progress = this.phaseElapsed / this.getPhaseDuration();
-
-    // Let the current phase handle its timeline
-    const phase = this.phases[this.phase];
-    phase.update(this.phaseElapsed, this.progress);
-  }
-
-  getPhaseDuration() {
-    switch (this.phase) {
-      case 'vacuum': return 10;
-      case 'hydrogen': return 15;
-      case 'molecule': return 20;
-      default: return 10;
+      if (this.onPhaseChange) this.onPhaseChange(newPhase);
     }
   }
 
   reset() {
+    this.active = false;
     this.elapsed = 0;
-    this.phaseElapsed = 0;
-    this.phase = 'vacuum';
-    this.progress = 0;
-    this.speed = 1.0;
+    this.phase = '';
+
     // Reset all fields
-    Object.values(this.fields).forEach(f => { f.intensity = 1.0; f.visible = true; });
+    Object.values(this.fields).forEach(f => {
+      f.intensity = 1.0;
+      f.visible = true;
+    });
   }
 
   setSpeed(val) {

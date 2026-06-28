@@ -56,11 +56,11 @@ const gridHelper = new THREE.GridHelper(14, 14, 0x222244, 0x111133);
 sceneManager.scene.add(gridHelper);
 
 // --- Simulation ---
-// Phase1_Vacuum uses FieldSheet's update(), passing intensity and nucleus positions
 const sim = new SimulationManager(fields);
 sim.onPhaseChange = (phase) => {
   if (ui) ui.updateDisplay(phase);
 };
+sim.start(); // Auto-start first scenario
 
 // --- UI ---
 const ui = new UI(sceneManager, sim, fields);

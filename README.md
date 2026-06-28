@@ -28,13 +28,20 @@ Open `http://localhost:5173` in a modern browser (Chromium, Firefox, Edge).
 
 All sheets use **additive blending** — where they overlap, colors mix dynamically. You can adjust the **Field Offset** slider to stack them all on the same plane (offset=0) or spread them apart.
 
-## Simulation Phases
+## 3 Scenarios
 
-| Phase | Duration | Description |
-|-------|----------|-------------|
-| **Vacuum** | 0–10s | All fields show only low-intensity noise — vacuum fluctuations |
-| **Hydrogen** | 10–25s | Two quark spikes converge → gluon arcs lock the nucleus → photon well forms → electron wave collapses into a spherical 1s orbital |
-| **Molecule** | 25–45s | A second atom enters → both nuclei move to bond distance → photon fields merge → electron clouds fuse into a peanut-shaped covalent H₂ orbital |
+Select from the dropdown in the UI. Each scenario auto-plays a full timeline:
+
+### 1. ⚛ Hydrogen Formation _(22s)_
+Quantum vacuum → quark confinement cones emerge → gluon flux tube locks the nucleus → Coulomb photon well forms → electron wave collapses into a 1s standing orbital.
+
+### 2. ⚛️ H₂ Molecular Bonding _(30s)_
+Two separate hydrogen atoms approach each other → photon fields merge → electron clouds overlap and fuse into a peanut-shaped H₂ bonding molecular orbital.
+
+### 3. 💥 H + Anti-H Annihilation _(25s)_
+Hydrogen (matter) and antihydrogen (antimatter) approach → fields begin to cancel on contact → **annihilation burst** of pure energy → expanding photon ring → fades back to vacuum.
+
+Anti-matter fields invert to complementary colors with negative sheet deformation. When matter and anti-matter overlap, destructive interference releases a burst of pure photon energy.
 
 ## Controls
 
