@@ -53,7 +53,8 @@ export class FieldSheet extends Field {
       varying float vDeformation;
       varying vec3 vColor;
 
-      // --- Physical constants ---
+      // GLSL ES 1.00 doesn't support .xz swizzle — use this helper
+      vec2 flatPos(vec3 v) { return vec2(v.x, v.z); }
       // Bohr radius a₀ in arbitrary units (~0.53 Å in real units, scaled to ~1.5 in our coordinate system)
       const float AO = 1.5;
       const float AO_INV = 1.0 / 1.5;
@@ -61,7 +62,7 @@ export class FieldSheet extends Field {
       // --- Electron 1s orbital: |ψ₁₀₀(r)|² = exp(-2r/a₀) / (π·a₀³) ---
       // Normalized probability density for hydrogen ground state
       float electronDensity(vec3 pos, vec3 center) {
-        float r = length(pos.xz - center.xz);
+        float r = length(flatPos(pos) - flatPos(center));
         float expArg = -2.0 * r * AO_INV;
         // Clamp to prevent underflow
         if (expArg < -20.0) return 0.0;
@@ -73,8 +74,8 @@ export class FieldSheet extends Field {
       // --- H₂ molecular orbital (bonding): ψ_bonding = (ψ₁₀₀(r₁) + ψ₁₀₀(r₂)) / √(2+2S) ---
       // Where S = ∫ ψ₁ψ₂ dV is the overlap integral
       float molecularOrbital(vec3 pos, vec3 c1, vec3 c2) {
-        float r1 = length(pos.xz - c1.xz);
-        float r2 = length(pos.xz - c2.xz);
+        float r1 = length(flatPos(pos) - flatPos(c1));
+        float r2 = length(flatPos(pos) - flatPos(c2));
 
         float exp1 = -2.0 * r1 * AO_INV;
         float exp2 = -2.0 * r2 * AO_INV;
@@ -84,7 +85,7 @@ export class FieldSheet extends Field {
         float psi2 = exp(exp2 > -20.0 ? exp2 : -20.0);
 
         // Overlap integral S ≈ exp(-R/a₀) × (1 + R/a₀ + R²/3a₀²)
-        float R = length(c1.xz - c2.xz);
+        float R = length(flatPos(c1) - flatPos(c2));
         float R_over_a0 = R * AO_INV;
         float S = exp(-R_over_a0) * (1.0 + R_over_a0 + R_over_a0 * R_over_a0 / 3.0);
 
@@ -101,7 +102,7 @@ export class FieldSheet extends Field {
       // --- Quark confinement: V(r) = k·r (linear confinement potential) ---
       // Sharp spike at nucleus with linear rise
       float quarkPotential(vec3 pos, vec3 center) {
-        float r = length(pos.xz - center.xz);
+        float r = length(flatPos(pos) - flatPos(center));
         // Linear confinement: V ∝ r for large distances, but gaussian for the core
         float core = exp(-r * r * 15.0) * 4.0;
         // Linear tail for confinement visualization
@@ -112,7 +113,7 @@ export class FieldSheet extends Field {
       // --- Coulomb potential: V(r) = 1/r ---
       // Electromagnetic potential falls off as inverse distance
       float coulombPotential(vec3 pos, vec3 center) {
-        float r = length(pos.xz - center.xz);
+        float r = length(flatPos(pos) - flatPos(center));
         if (r < 0.1) return 10.0; // Prevent singularity
         return (1.0 / r) * uIntensity * 2.0;
       }
@@ -136,10 +137,10 @@ export class FieldSheet extends Field {
         }
         else if (uMode == 3) {
           // Gluon: bridge between nuclei (strong force flux tube)
-          float d1 = length(pos.xz - uNucleus1.xz);
-          float d2 = length(pos.xz - uNucleus2.xz);
+          float d1 = length(flatPos(pos) - flatPos(uNucleus1));
+          float d2 = length(flatPos(pos) - flatPos(uNucleus2));
           vec3 mid = (uNucleus1 + uNucleus2) * 0.5;
-          float dMid = length(pos.xz - mid.xz);
+          float dMid = length(flatPos(pos) - flatPos(mid));
           // Flux tube between quarks
           float tube = exp(-dMid * dMid * 1.5) * 2.0;
           float corners = exp(-min(d1, d2) * min(d1, d2) * 8.0) * 1.5;
