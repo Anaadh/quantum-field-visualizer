@@ -48,7 +48,7 @@ export class Phase3_Molecule {
     this.fields.electron.update(t, {
       intensity: 1.0,
       nuclei: [nucleus1, nucleus2],
-      phaseParams: new THREE.Vector4(1.0 + electronMerge, 0, t * 0.3, 0),
+      phaseParams: new THREE.Vector4(electronMerge, 0, t * 0.3, 0), // x = bond progress
     });
     this.fields.gluon.update(t, {
       intensity: gluonIntensity,
