@@ -55,14 +55,13 @@ export class FieldSheet extends Field {
       }
     `;
 
-    const mat = new THREE.ShaderMaterial({
-      uniforms: this.uniforms,
-      vertexShader,
-      fragmentShader,
+    // TEMP: Use MeshBasicMaterial instead of ShaderMaterial to verify geometry
+    const mat = new THREE.MeshBasicMaterial({
+      color: this.color,
       transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
+      opacity: 0.8,
       side: THREE.DoubleSide,
+      depthWrite: true,
     });
 
     this._mesh = new THREE.Mesh(geo, mat);

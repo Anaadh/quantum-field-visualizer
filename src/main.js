@@ -12,6 +12,13 @@ document.body.appendChild(canvas);
 const sceneManager = new SceneManager(canvas);
 sceneManager.scene.background = new THREE.Color(0x0a0a0f);
 
+// --- TEST: A guaranteed-visible cube ---
+const testGeo = new THREE.BoxGeometry(1, 1, 1);
+const testMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+const testCube = new THREE.Mesh(testGeo, testMat);
+testCube.position.set(0, 0, 0);
+sceneManager.scene.add(testCube);
+
 // --- Camera positioned to view sheets from above ---
 sceneManager.camera.position.set(6, 8, 8);
 sceneManager.camera.lookAt(0, 0, 0);
