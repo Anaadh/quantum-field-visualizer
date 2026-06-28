@@ -55,13 +55,15 @@ export class FieldSheet extends Field {
       }
     `;
 
-    // TEMP: Use MeshBasicMaterial instead of ShaderMaterial to verify geometry
-    const mat = new THREE.MeshBasicMaterial({
-      color: this.color,
+    // Minimal ShaderMaterial test
+    const vert = `void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+    const frag = `uniform vec3 uColor; void main() { gl_FragColor = vec4(uColor, 0.8); }`;
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uColor: { value: this.color } },
+      vertexShader: vert,
+      fragmentShader: frag,
       transparent: true,
-      opacity: 0.8,
       side: THREE.DoubleSide,
-      depthWrite: true,
     });
 
     this._mesh = new THREE.Mesh(geo, mat);
