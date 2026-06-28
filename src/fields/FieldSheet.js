@@ -40,7 +40,7 @@ export class FieldSheet extends Field {
       varying float vDeform;
 
       // GLSL helper — .xz swizzle not supported in GLSL ES 1.00
-      vec2 flat(vec3 v) { return vec2(v.x, v.z); }
+      vec2 flatPos(vec3 v) { return vec2(v.x, v.z); }
 
       // --- PHYSICS: Field deformation equations ---
 
@@ -49,30 +49,30 @@ export class FieldSheet extends Field {
 
       // Hydrogen 1s: |ψ₁₀₀|² = exp(-2r/a₀) / πa₀³
       float orbital1s(vec3 pos, vec3 center) {
-        float r = length(flat(pos) - flat(center));
+        float r = length(flatPos(pos) - flatPos(center));
         return exp(-2.0 * r / AO) * 2.0;
       }
 
       // H₂ bonding: (ψ₁+ψ₂)² / 2(1+S)
       float orbitalH2(vec3 pos, vec3 c1, vec3 c2) {
-        float r1 = length(flat(pos) - flat(c1));
-        float r2 = length(flat(pos) - flat(c2));
+        float r1 = length(flatPos(pos) - flatPos(c1));
+        float r2 = length(flatPos(pos) - flatPos(c2));
         float psi1 = exp(-2.0 * r1 / AO);
         float psi2 = exp(-2.0 * r2 / AO);
-        float R = length(flat(c1) - flat(c2));
+        float R = length(flatPos(c1) - flatPos(c2));
         float S = exp(-R / AO) * (1.0 + R / AO + R*R / (3.0*AO*AO));
         return (psi1 + psi2) * (psi1 + psi2) / (2.0 * (1.0 + S)) * 2.5;
       }
 
       // Quark confinement: gaussian spike
       float quarkWell(vec3 pos, vec3 center) {
-        float r = length(flat(pos) - flat(center));
+        float r = length(flatPos(pos) - flatPos(center));
         return exp(-r * r * 15.0) * 4.0;
       }
 
       // Coulomb: 1/r potential
       float coulomb(vec3 pos, vec3 center) {
-        float r = length(flat(pos) - flat(center));
+        float r = length(flatPos(pos) - flatPos(center));
         return 1.0 / max(r, 0.1) * 2.0;
       }
 
@@ -86,10 +86,10 @@ export class FieldSheet extends Field {
           d = mix(single, bonded, smoothstep(0.3, 0.8, uBondFormed));
         }
         else if (uMode == 3) {
-          float d1 = length(flat(pos) - flat(uNucleus1));
-          float d2 = length(flat(pos) - flat(uNucleus2));
+          float d1 = length(flatPos(pos) - flatPos(uNucleus1));
+          float d2 = length(flatPos(pos) - flatPos(uNucleus2));
           vec3 mid = (uNucleus1 + uNucleus2) * 0.5;
-          float dM = length(flat(pos) - flat(mid));
+          float dM = length(flatPos(pos) - flatPos(mid));
           d = (exp(-dM*dM*1.5) * 2.0 + exp(-min(d1,d2)*min(d1,d2)*8.0) * 1.5) * uIntensity;
         }
         else if (uMode == 4) d = coulomb(pos, uNucleus1) + coulomb(pos, uNucleus2);
